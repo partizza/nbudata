@@ -1,5 +1,6 @@
 import requests
 import json
+import os
 
 URL_JSON = 'https://bank.gov.ua/depo_securities?json'
 
@@ -24,6 +25,11 @@ JSON_DESC = {
 
 
 def get_json() -> json:
+    """
+    Makes HTTP GET request to NBU API to retrieve government bonds info
+
+    :return: json data
+    """
     res = requests.get(URL_JSON)
 
     if res.status_code == 200:
@@ -33,11 +39,41 @@ def get_json() -> json:
         return None
 
 
-def view(*isins) -> None:
-    data = get_json()
+def filter_isins(data: json, isins: tuple) -> json:
+    """
+    Filter source json government bonds data by isin(s)
 
+    :param data: government bonds data in json format
+    :param isins: isin value(s) to filter
+    :return: json data filtered by isin(s)
+    """
     if isins:
-        filtered_isins = [item for item in data if item['cpcode'] in isins]
-        print(json.dumps(filtered_isins, indent=6))
+        return [item for item in data if item['cpcode'] in isins]
     else:
-        print(json.dumps(data, indent=6))
+        return data
+
+
+def view(*isins) -> None:
+    """
+    Prints to console government bonds information
+
+    :param isins: isin(s) to select from all data
+    :return: selected government bond data
+    """
+    data = filter_isins(get_json(), isins)
+    print(json.dumps(data, indent=6))
+
+
+def to_file(*isins, dir_path: str = '.') -> None:
+    """
+    Writes government bonds data into files into specified directory (each isin into separate file)
+
+    :param isins: isin(s) to select from available data
+    :param dir_path: directory to write file(s)
+    """
+    data = filter_isins(get_json(), isins)
+    for item in data:
+        file_path = os.path.join(dir_path, item['cpcode'] + '.json')
+        ext_item = {"desc": JSON_DESC, "data": item}
+        with open(file_path, 'w') as f:
+            json.dump(ext_item, f, indent=6, ensure_ascii=False)
