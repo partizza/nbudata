@@ -130,6 +130,22 @@ def table(currency: str, from_date: date, to_date: date) -> None:
     print(tabulate(df, headers=['Date', f'{currency.upper()} rate'], tablefmt='pretty'))
 
 
+def save_csv(currency: str, from_date: date, to_date: date, file_csv: str) -> None:
+    """
+    Saves exchange rates into csv file
+
+    :param currency: string of requested currency exchange rates
+    :param from_date: date as start of requested period
+    :param to_date: date as end of requested period
+    :param file_csv: string of file name with path
+    """
+
+    rates = get_rates(currency, from_date, to_date)
+    df = pd.DataFrame(rates)
+
+    df.to_csv(file_csv, index=False)
+
+
 if __name__ == '__main__':
 
     import argparse
@@ -143,12 +159,25 @@ if __name__ == '__main__':
 
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("command", help="""
+    Action:
+    - chart: show a chart of exchange rates for period
+    - table: print exchange rates onto console in tabular format
+    - save: save exchange rates into csv file 
+    """, choices=['chart', 'table', 'save'])
     parser.add_argument("-c", "--currency", help="Currency code (e.g. USD, EUR)", required=True)
-    parser.add_argument("-s", "--period-start", help="Period start date -- formar YYYY-MM-DD", required=True,
+    parser.add_argument("-s", "--period-start", help="Period start date -- format YYYY-MM-DD", required=True,
                         type=valid_date)
-    parser.add_argument("-e", "--period-end", help="Period end date -- formar YYYY-MM-DD", required=True,
+    parser.add_argument("-e", "--period-end", help="Period end date -- format YYYY-MM-DD", required=True,
                         type=valid_date)
+    parser.add_argument("-f", "--file-export", help="File to save data")
     args = parser.parse_args()
 
-    table(args.currency, args.period_start, args.period_end)
-    # chart(args.currency, args.period_start, args.period_end)
+    if args.command.lower() == 'chart':
+        chart(args.currency, args.period_start, args.period_end)
+    elif args.command.lower() == 'table':
+        table(args.currency, args.period_start, args.period_end)
+    elif args.command.lower() == 'save':
+        save_csv(args.currency, args.period_start, args.period_end, args.file_export)
+    else:
+        raise ValueError(f'Unknown command: {args.command}')
