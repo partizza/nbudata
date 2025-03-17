@@ -100,7 +100,7 @@ def chart(currency: str, from_date: date, to_date: date) -> None:
     df[ResponseAttributes.exchange_date] = pd.to_datetime(df[ResponseAttributes.exchange_date], format='%d.%m.%Y')
 
     fig, ax = plt.subplots()
-    ax.plot(df[ResponseAttributes.exchange_date], df[ResponseAttributes.rate])
+    ax.plot(df[ResponseAttributes.exchange_date], df[ResponseAttributes.rate_per_unit])
     # date axis configs
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m/%Y'))
     ax.xaxis.set_major_locator(mdates.DayLocator())
@@ -112,9 +112,9 @@ def chart(currency: str, from_date: date, to_date: date) -> None:
     plt.show()
 
 
-def table(currency: str, from_date: date, to_date: date) -> None:
+def show(currency: str, from_date: date, to_date: date) -> None:
     """
-    Shows exchange rates for requested currency and period
+    Prints on console exchange rates for requested currency and period
 
     :param currency: string of requested currency exchange rates
     :param from_date: date as start of requested period
@@ -125,7 +125,7 @@ def table(currency: str, from_date: date, to_date: date) -> None:
     rates = get_rates(currency, from_date, to_date)
 
     df = pd.DataFrame(rates)
-    df = df[[ResponseAttributes.exchange_date, ResponseAttributes.rate]]
+    df = df[[ResponseAttributes.exchange_date, ResponseAttributes.rate_per_unit]]
 
     print(tabulate(df, headers=['Date', f'{currency.upper()} rate'], tablefmt='pretty'))
 
@@ -158,25 +158,44 @@ if __name__ == '__main__':
             raise argparse.ArgumentTypeError(f"not a valid date: {s!r}")
 
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("command", help="""
-    Action:
-    - chart: show a chart of exchange rates for period
-    - table: print exchange rates onto console in tabular format
-    - save: save exchange rates into csv file 
-    """, choices=['chart', 'table', 'save'])
-    parser.add_argument("-c", "--currency", help="Currency code (e.g. USD, EUR)", required=True)
-    parser.add_argument("-s", "--period-start", help="Period start date -- format YYYY-MM-DD", required=True,
-                        type=valid_date)
-    parser.add_argument("-e", "--period-end", help="Period end date -- format YYYY-MM-DD", required=True,
-                        type=valid_date)
-    parser.add_argument("-f", "--file-export", help="File to save data")
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=f"Script to retrieve exchange rates form NBU API ({RequestBuilder.url})",
+        epilog="""Example: 
+        1. Show exchange rates of EUR for Jan 2025: 
+                %(prog)s -c EUR -s 2025-1-1 -e 2025-1-31
+        2. Show current GBP exchange rate:
+                %(prog)s -c GBP
+        3. Show USD exchange rates from 2025-3-15 to now:
+                %(prog)s -s 2025-3-15
+        4. Chart USD exchange rates from 2025-1-1 to now:
+                %(prog)s -a chart -s 2025-1-1
+        5. Save to file USD exchange rates from 2024-1-1 to 2024-12-31:
+                %(prog)s -a save -s 2024-1-1 -e 2024-12-31 -f usd_2024_year.csv
+        """)
+
+    parser.add_argument('-a', '--command',
+                        help="""Defines how to explore data. 
+                        Option 'chart' shows a chart of exchange rates for period.
+                        Option 'show' prints exchange rates onto console in tabular format. 
+                        Option 'save' saves exchange rates into csv file.
+                        By default is 'show'
+                        """,
+                        nargs='?', choices=['chart', 'show', 'save'], default='show')
+    parser.add_argument('-c', '--currency', help="Currency code (e.g. USD, EUR). By default is USD.", default='USD')
+    parser.add_argument('-s', '--period_start', help="Period start date -- format YYYY-MM-DD. By default is today.",
+                        type=valid_date,
+                        default=datetime.now())
+    parser.add_argument('-e', '--period_end', help="Period end date -- format YYYY-MM-DD. By default is today.",
+                        type=valid_date,
+                        default=datetime.now())
+    parser.add_argument("-f", "--file-export", help="File to save data. Skip save If file name is missing.")
     args = parser.parse_args()
 
     if args.command.lower() == 'chart':
         chart(args.currency, args.period_start, args.period_end)
-    elif args.command.lower() == 'table':
-        table(args.currency, args.period_start, args.period_end)
+    elif args.command.lower() == 'show':
+        show(args.currency, args.period_start, args.period_end)
     elif args.command.lower() == 'save':
         save_csv(args.currency, args.period_start, args.period_end, args.file_export)
     else:
