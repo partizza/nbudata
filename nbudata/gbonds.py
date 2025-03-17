@@ -4,24 +4,45 @@ import os
 
 URL_JSON = 'https://bank.gov.ua/depo_securities?json'
 
-JSON_DESC = {
-    "cpcode": "ISIN цінного паперу",
-    "nominal": "Номінал (грн.)",
-    "auk_proc": "процентна ставка",
-    "pgs_date": "дата погашення",
-    "razm_date": "дата первинного розміщення",
-    "pay_period": "період виплати відсотків (у днях)",
-    "val_code": "Код валюти",
-    "cptype": "Тип ЦП (DCP - ДЦП,OMP - муніціпальні)",
-    "cpdescr": "Опис ЦП",
-    "emit_okpo": "ЄДРПОУ емітента",
-    "emit_name": "Назва емітента",
-    "total_bonds": "кількість облігацій в обігу",
-    "payments": "Платежі",
-    "pay_date": "дата виплати відсотків",
-    "pay_type": "тип виплати (1–відсоткі,2-погаш.,3-достр.погаш)",
-    "pay_val": "купон виплати за 1 папір"
-}
+
+class ResponseAttributes:
+    cpcode = 'cpcode'
+    nominal = "nominal"
+    auk_proc = "auk_proc"
+    pgs_date = "pgs_date"
+    razm_date = "razm_date"
+    pay_period = "pay_period"
+    val_code = "val_code"
+    cptype = "cptype"
+    cpdescr = "cpdescr"
+    emit_okpo = "emit_okpo"
+    emit_name = "emit_name"
+    total_bonds = "total_bonds"
+    payments = "payments"
+    pay_date = "pay_date"
+    pay_type = "pay_type"
+    pay_val = "pay_val"
+
+    @staticmethod
+    def json_desc():
+        return {
+            ResponseAttributes.cpcode: "ISIN цінного паперу",
+            ResponseAttributes.nominal: "Номінал (грн.)",
+            ResponseAttributes.auk_proc: "процентна ставка",
+            ResponseAttributes.pgs_date: "дата погашення",
+            ResponseAttributes.razm_date: "дата первинного розміщення",
+            ResponseAttributes.pay_period: "період виплати відсотків (у днях)",
+            ResponseAttributes.val_code: "Код валюти",
+            ResponseAttributes.cptype: "Тип ЦП (DCP - ДЦП,OMP - муніціпальні)",
+            ResponseAttributes.cpdescr: "Опис ЦП",
+            ResponseAttributes.emit_okpo: "ЄДРПОУ емітента",
+            ResponseAttributes.emit_name: "Назва емітента",
+            ResponseAttributes.total_bonds: "кількість облігацій в обігу",
+            ResponseAttributes.payments: "Платежі",
+            ResponseAttributes.pay_date: "дата виплати відсотків",
+            ResponseAttributes.pay_type: "тип виплати (1–відсоткі,2-погаш.,3-достр.погаш)",
+            ResponseAttributes.pay_val: "купон виплати за 1 папір"
+        }
 
 
 def get_json() -> json:
@@ -39,7 +60,7 @@ def get_json() -> json:
         return None
 
 
-def filter_isins(data: json, isins: tuple) -> json:
+def filter_isins(data: json, isins: list) -> json:
     """
     Filter source json government bonds data by isin(s)
 
@@ -53,7 +74,7 @@ def filter_isins(data: json, isins: tuple) -> json:
         return data
 
 
-def view(*isins) -> None:
+def show(isins: list) -> None:
     """
     Prints to console government bonds information
 
@@ -61,10 +82,10 @@ def view(*isins) -> None:
     :return: selected government bond data
     """
     data = filter_isins(get_json(), isins)
-    print(json.dumps(data, indent=6))
+    print(json.dumps(data, indent=6, ensure_ascii=False))
 
 
-def to_file(*isins, dir_path: str = '.') -> None:
+def to_file(isins: list, dir_path: str = '.') -> None:
     """
     Writes government bonds data into files into specified directory (each isin into separate file)
 
@@ -74,6 +95,51 @@ def to_file(*isins, dir_path: str = '.') -> None:
     data = filter_isins(get_json(), isins)
     for item in data:
         file_path = os.path.join(dir_path, item['cpcode'] + '.json')
-        ext_item = {"desc": JSON_DESC, "data": item}
+        ext_item = {"desc": ResponseAttributes.json_desc(), "data": item}
         with open(file_path, 'w') as f:
             json.dump(ext_item, f, indent=6, ensure_ascii=False)
+
+
+def save(isins: list, file: str) -> None:
+    data = filter_isins(get_json(), isins)
+    with open(file, 'w') as f:
+        json.dump(data, f, indent=6, ensure_ascii=False)
+
+
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=f"Script to retrieve government bounds data form NBU API ({URL_JSON})",
+        epilog="""Example: 
+            1. Save all data into file data.json:
+                    %(prog)s -a save -f data.json
+            2. Show bonds filtered by isin:
+                    %(prog)s -s UA4000227193,UA4000227201
+            """)
+
+    parser.add_argument('-a', '--command',
+                        help="""Defines how to explore data. 
+                        Option 'show' prints bond descriptions onto console. 
+                        Option 'save' saves bond descriptions into file.
+                        By default is 'show'.
+                        """,
+                        nargs='?', choices=['show', 'save'], default='show')
+    parser.add_argument('-s', '--isin',
+                        help="""
+                                Filter by ISIN code(s), split the values by comma if more than one, 
+                                e.g. -s UA12,UA05,UA78
+                                """)
+    parser.add_argument('-f', '--file-export', help='File to save data. Skip save If file name is missing.')
+
+    args = parser.parse_args()
+    isins = args.isin.split(',') if args.isin else None
+
+    if args.command == 'show':
+        show(isins)
+    elif args.command == 'save':
+        print("should save")
+        save(isins, args.file_export)
+    else:
+        raise ValueError(f'Unknown command: {args.command}')
