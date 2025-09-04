@@ -1,3 +1,4 @@
+import pandas as pd
 import requests
 import json
 import os
@@ -74,15 +75,31 @@ def filter_isins(data: json, isins: list) -> json:
         return data
 
 
-def show(isins: list) -> None:
+def show(isins: list, format: str) -> None:
     """
     Prints to console government bonds information
 
     :param isins: isin(s) to select from all data
-    :return: selected government bond data
+    :param format: view format
     """
     data = filter_isins(get_json(), isins)
-    print(json.dumps(data, indent=6, ensure_ascii=False))
+    f = format.lower()
+
+    if f == 'json':
+        print(json.dumps(data, indent=6, ensure_ascii=False))
+
+    elif f == 'table':
+        df = pd.DataFrame(data)
+        df = df.drop(columns=ResponseAttributes.payments)
+        pd.set_option('display.max_rows', None)
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.width', 1000)
+        pd.set_option('display.max_colwidth', None)
+
+        print(df)
+
+    else:
+        raise AttributeError(f"Unknown format: {format}")
 
 
 def to_file(isins: list, dir_path: str = '.') -> None:
@@ -92,6 +109,7 @@ def to_file(isins: list, dir_path: str = '.') -> None:
     :param isins: isin(s) to select from available data
     :param dir_path: directory to write file(s)
     """
+
     data = filter_isins(get_json(), isins)
     for item in data:
         file_path = os.path.join(dir_path, item['cpcode'] + '.json')
@@ -101,6 +119,13 @@ def to_file(isins: list, dir_path: str = '.') -> None:
 
 
 def save(isins: list, file: str) -> None:
+    """
+    Writes data into file in json format
+
+    :param isins: selected ISINs to write
+    :param file: name of file to write into
+    """
+
     data = filter_isins(get_json(), isins)
     with open(file, 'w') as f:
         json.dump(data, f, indent=6, ensure_ascii=False)
@@ -114,32 +139,30 @@ if __name__ == '__main__':
         description=f"Script to retrieve government bounds data form NBU API ({URL_JSON})",
         epilog="""Example: 
             1. Save all data into file data.json:
-                    %(prog)s -a save -f data.json
+                    %(prog)s save -f data.json
             2. Show bonds filtered by isin:
-                    %(prog)s -s UA4000227193,UA4000227201
+                    %(prog)s -s UA4000227193,UA4000227201 show
             """)
 
-    parser.add_argument('-a', '--command',
-                        help="""Defines how to explore data. 
-                        Option 'show' prints bond descriptions onto console. 
-                        Option 'save' saves bond descriptions into file.
-                        By default is 'show'.
-                        """,
-                        nargs='?', choices=['show', 'save'], default='show')
     parser.add_argument('-s', '--isin',
                         help="""
                                 Filter by ISIN code(s), split the values by comma if more than one, 
                                 e.g. -s UA12,UA05,UA78
                                 """)
-    parser.add_argument('-f', '--file-export', help='File to save data. Skip save If file name is missing.')
+
+    subparsers = parser.add_subparsers(required=True, help="Available commands.")
+
+    show_parser = subparsers.add_parser('show', help="Shows data on console")
+    show_parser.add_argument('--show-format', default='table', choices=['table', 'json'],
+                             help="Specifies how data shown on console.")
+
+    save_parser = subparsers.add_parser('save', help='Saves data into file')
+    save_parser.add_argument('-f', '--file-export', help='File to save data. Skip save If file name is missing.')
 
     args = parser.parse_args()
     isins = args.isin.split(',') if args.isin else None
 
-    if args.command == 'show':
-        show(isins)
-    elif args.command == 'save':
-        print("should save")
+    if 'show_format' in args:
+        show(isins, args.show_format)
+    elif 'file_export' in args:
         save(isins, args.file_export)
-    else:
-        raise ValueError(f'Unknown command: {args.command}')
