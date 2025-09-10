@@ -2,6 +2,8 @@ import pandas as pd
 import requests
 import json
 import os
+from datetime import date
+from tabulate import tabulate
 
 URL_JSON = 'https://bank.gov.ua/depo_securities?json'
 
@@ -102,6 +104,43 @@ def show(isins: list, format: str) -> None:
         raise AttributeError(f"Unknown format: {format}")
 
 
+def payments(data: json, include_paid: bool) -> dict[str, list[list[date | float]]]:
+    """
+    Selects for each ISIN it's payment dates and payment amount
+
+    :param data: json of selected data
+    :param include_paid: if True includes passed payment dates, otherwise only expected payments
+    :return: dictionary with payment dates and amounts for each ISIN
+    """
+
+    isin_payments: dict[str, list[list[date | float]]] = dict()
+    for item in data:
+        payment_dates: list[list[date | float]] = []
+        for payment in item[ResponseAttributes.payments]:
+            payment_date = date.fromisoformat(payment[ResponseAttributes.pay_date])
+            if (not include_paid and payment_date >= date.today()) or include_paid:
+                payment_dates.append([payment_date, float(payment[ResponseAttributes.pay_val])])
+
+        isin_payments[item[ResponseAttributes.cpcode]] = payment_dates
+
+    return isin_payments
+
+
+def show_payments(isins: list, include_paid: bool) -> None:
+    """
+    Prints to console payments for each ISIN.
+
+    :param isins: ISINs to show
+    :param include_paid: if True includes passed payment dates, otherwise only expected payments
+    """
+
+    data = filter_isins(get_json(), isins)
+    isin_payments = payments(data, include_paid)
+    for k, v in isin_payments.items():
+        print(f'\n{k} payments per bond:')
+        print(tabulate(v, numalign='left'))
+
+
 def to_file(isins: list, dir_path: str = '.') -> None:
     """
     Writes government bonds data into files into specified directory (each isin into separate file)
@@ -159,6 +198,10 @@ if __name__ == '__main__':
     save_parser = subparsers.add_parser('save', help='Saves data into file')
     save_parser.add_argument('-f', '--file-export', help='File to save data. Skip save If file name is missing.')
 
+    payments_parser = subparsers.add_parser('payments', help='Shows payments by dates')
+    payments_parser.add_argument('-a', action='store_true',
+                                 help="Shows all payments (paid and unpaid. In other case it shows only unpaid payments.")
+
     args = parser.parse_args()
     isins = args.isin.split(',') if args.isin else None
 
@@ -166,3 +209,5 @@ if __name__ == '__main__':
         show(isins, args.show_format)
     elif 'file_export' in args:
         save(isins, args.file_export)
+    elif 'a' in args:
+        show_payments(isins, args.a)
