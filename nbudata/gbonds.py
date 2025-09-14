@@ -93,52 +93,34 @@ def show(isins: list, format: str) -> None:
     elif f == 'table':
         df = pd.DataFrame(data)
         df = df.drop(columns=ResponseAttributes.payments)
-        pd.set_option('display.max_rows', None)
-        pd.set_option('display.max_columns', None)
-        pd.set_option('display.width', 1000)
-        pd.set_option('display.max_colwidth', None)
-
-        print(df)
+        print(tabulate(df, headers='keys', showindex=False, tablefmt='rst', disable_numparse=True))
 
     else:
         raise AttributeError(f"Unknown format: {format}")
 
 
-def payments(data: json, include_paid: bool) -> dict[str, list[list[date | float]]]:
-    """
-    Selects for each ISIN it's payment dates and payment amount
-
-    :param data: json of selected data
-    :param include_paid: if True includes passed payment dates, otherwise only expected payments
-    :return: dictionary with payment dates and amounts for each ISIN
-    """
-
-    isin_payments: dict[str, list[list[date | float]]] = dict()
-    for item in data:
-        payment_dates: list[list[date | float]] = []
-        for payment in item[ResponseAttributes.payments]:
-            payment_date = date.fromisoformat(payment[ResponseAttributes.pay_date])
-            if (not include_paid and payment_date >= date.today()) or include_paid:
-                payment_dates.append([payment_date, float(payment[ResponseAttributes.pay_val])])
-
-        isin_payments[item[ResponseAttributes.cpcode]] = payment_dates
-
-    return isin_payments
-
-
 def show_payments(isins: list, include_paid: bool) -> None:
     """
-    Prints to console payments for each ISIN.
+    Prints to console aggregated payment per bond on each payment date.
 
-    :param isins: ISINs to show
+    :param isins: selected ISINs
     :param include_paid: if True includes passed payment dates, otherwise only expected payments
     """
 
     data = filter_isins(get_json(), isins)
-    isin_payments = payments(data, include_paid)
-    for k, v in isin_payments.items():
-        print(f'\n{k} payments per bond:')
-        print(tabulate(v, numalign='left'))
+    df = pd.DataFrame(data)
+    df = df.explode(ResponseAttributes.payments)
+    df_exploded = df[ResponseAttributes.payments].apply(pd.Series)
+    df = pd.concat([df.drop(ResponseAttributes.payments, axis=1), df_exploded], axis=1)
+    df = df.groupby([ResponseAttributes.pay_date, ResponseAttributes.val_code], as_index=False).agg(
+        pay_per_bond=(ResponseAttributes.pay_val, 'sum'))
+    df[ResponseAttributes.pay_date] = pd.to_datetime(df[ResponseAttributes.pay_date]).dt.date
+    if not include_paid:
+        df = df.loc[df[ResponseAttributes.pay_date] >= date.today()]
+
+    df.sort_values(by=[ResponseAttributes.pay_date, ResponseAttributes.val_code])
+
+    print(tabulate(df, headers='keys', showindex=False))
 
 
 def to_file(isins: list, dir_path: str = '.') -> None:
