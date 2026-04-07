@@ -206,6 +206,7 @@ cython_debug/
 
 # CMake
 cmake-build-*/
+.env
 
 # Mongo Explorer plugin
 .idea/**/mongoSettings.xml
